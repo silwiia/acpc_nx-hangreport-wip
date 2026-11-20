@@ -1,6 +1,6 @@
 /* hangdump.c -- hang reporter.
  *
- * Writes sdmc:/switch/acpc_nx/hang_report.txt (appended) with every registered thread's
+ * Writes a new file sdmc:/switch/acpc_nx/hang_report_001.txt, _002, ... for each report, with every registered thread's
  * program counter, link register, stack pointer and a short frame-pointer call trace,
  * plus the process memory use, when
  *   - the Unity frame hook has not run for HD_STALL_SECONDS (the whole game is stuck), or
@@ -31,9 +31,10 @@
 #define HD_STALL_SECONDS 8
 #define HD_COMBO_TICKS   8      /* 8 x 250 ms = 2 s */
 #define HD_COOLDOWN_NS   (10ULL * 1000000000ULL)
-#ifndef HD_REPORT_PATH
-#define HD_REPORT_PATH   "sdmc:/switch/acpc_nx/hang_report.txt"
+#ifndef HD_REPORT_DIR
+#define HD_REPORT_DIR    "sdmc:/switch/acpc_nx"
 #endif
+#define HD_MAX_REPORTS   50     /* after this many files the last one is overwritten */
 #ifndef HD_VIBRATE
 #define HD_VIBRATE 1
 #endif
@@ -55,6 +56,7 @@ static volatile uint64_t g_last_frame_ns;
 static volatile uint64_t g_frames;
 static Thread    g_thr;
 static int       g_started;
+static const char *g_report_dir = HD_REPORT_DIR;
 static HidVibrationDeviceHandle g_vib[5];
 static int       g_nvib;
 
@@ -213,8 +215,16 @@ static int hd_write_report(const char *reason, uint64_t now_ns) {
   if (n >= cap) n = cap - 1;
 
   mkdir("sdmc:/switch", 0777);
-  mkdir("sdmc:/switch/acpc_nx", 0777);
-  int fd = open(HD_REPORT_PATH, O_WRONLY | O_CREAT | O_APPEND, 0666);
+  mkdir(g_report_dir, 0777);
+  /* A new numbered file per report: the first hang_report_NNN.txt that does not exist yet. */
+  char path[160];
+  int fd = -1;
+  for (int i = 1; i <= HD_MAX_REPORTS && fd < 0; i++) {
+    snprintf(path, sizeof path, "%s/hang_report_%03d.txt", g_report_dir, i);
+    fd = open(path, O_WRONLY | O_CREAT | O_EXCL, 0666);
+  }
+  if (fd < 0)   /* every number is taken (or the card is not writable): reuse the last one */
+    fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
   size_t off = 0;
   if (fd >= 0) {
     while (off < n) {
