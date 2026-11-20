@@ -1,5 +1,6 @@
 /* Pocket Camp Complete Unity wrapper entry point. */
 
+#include "hangdump.h"
 #include "saltynx.h"
 #include <stdlib.h>
 #include <malloc.h>
@@ -1183,6 +1184,7 @@ int main(int argc, char *argv[]) {
     if (!nx_install_time_fix()) fatal_error("Could not install Unity frame clock");
   }
   if (!nx_start_clock_thread()) fatal_error("Could not start Unity frame clock");
+  hangdump_init((uintptr_t)il2cpp_mod.load_virtbase, (uintptr_t)unity_mod.load_virtbase);
 
   for (;;) {
     if (!appletMainLoop()) break;
@@ -1191,6 +1193,7 @@ int main(int argc, char *argv[]) {
                             fake_env, fake_unityplayer_thiz);
     nx_pump_keyboard(fake_env, fake_unityplayer_thiz);
     int keep_running = Unity_nativeRender(fake_env, fake_unityplayer_thiz);
+    hangdump_frame();
     if (!keep_running) break;
   }
 

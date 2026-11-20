@@ -28,6 +28,7 @@ extern int z_strncasecmp(const char *, const char *, unsigned long);
 #include <signal.h>
 #include <sys/time.h>
 #include <sys/stat.h>
+#include "hangdump.h"
 #include <dirent.h>
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
@@ -341,6 +342,7 @@ static void thread_start_cleanup(void *p) {
   ThreadStart *ts = p;
   drain_fake_thread_keys();
   armSetTlsRw(ts->native_tls);
+  hangdump_thread_unregister();
   free(ts);
 }
 
@@ -348,6 +350,7 @@ static void *thread_trampoline(void *p) {
   ThreadStart *ts = (ThreadStart *)p;
   void *ret;
   ts->native_tls = armGetTlsRw();
+  hangdump_thread_register();   /* before the bionic TLS swap, while pthread_self() is the libnx thread */
   pthread_cleanup_push(thread_start_cleanup, ts);
   install_bionic_tls(ts->tls);
   ret = ts->entry(ts->arg);
